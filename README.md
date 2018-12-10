@@ -32,7 +32,7 @@
 
 * 1.首先 使用`chrome浏览器`，访问 `什么值得买pc端`， 登陆 `什么值得买` 账号
 * 2.打开`开发者工具`, `win`系统 快捷键 `F12` ，`mac` 快捷键 `option + command + i`
-* 3.打开`开发者工具` 中的 `Network`选项卡，**刷新页面** ,然后选第一个 `www.smzdm.com`,然后找到右侧的 `Cookie`字段，复制出来。 
+* 3.打开`开发者工具` 中的 `Network`选项卡，**刷新页面** ,然后选第一个 `www.smzdm.com`,然后找到右侧的 `Cookie`字段，复制出来。
 
 
 如图操作：
@@ -50,6 +50,16 @@
 
 ![](img/config.png)
 
+
+## 配置运行模式
+
+| 变量名 | 备注 | 默认值|
+| ------ | ------ | ------ |
+| sign | 是否签到 | true |
+| commit | 是否评论 | true |
+| sendLogEmail | 是否发送日志邮件 | true |
+
+
 ## 关于配置邮箱
 
 配置相关代码位置：`lib/mail.js` line 11
@@ -62,7 +72,7 @@
 
 ```
 // 邮箱支持列表
-https://nodemailer.com/smtp/well-known/ 
+https://nodemailer.com/smtp/well-known/
 // 邮箱配置信息 列表
 https://github.com/nodemailer/nodemailer-wellknown/blob/master/services.json
 ```
@@ -109,7 +119,7 @@ const cookieListValKey = [
 
 
 
-## 运行 
+## 运行
 
 ```bash
 # 先安装依赖 文件
@@ -133,19 +143,23 @@ nohup npm run dev &
 
 ```bash
 #全局安装pm2
-npm i pm2 -g 
+npm i pm2 -g
 
 #启动签到进程
 pm2 start smzdm.js
 
 #显示所有进程状态
-pm2 list 
+pm2 list
 
 #监视所有进程
 pm2 monit              
 
 #显示所有进程日志
 pm2 logs
+
+# 开机启动
+pm2 startup
+pm2 save
 
 ```
 
@@ -154,7 +168,4 @@ pm2 logs
 
 ## 定时邮件 发送效果
 
-![](img/email.png) 
-
-
-
+![](img/email.png)

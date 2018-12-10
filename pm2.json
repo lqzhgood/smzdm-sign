@@ -1,0 +1,23 @@
+{
+	"apps": [{
+		"name": "smzdm-sign",
+		"cwd": "/root/web/www/smzdm-sign/",
+		"script": "./smzdm.js",
+		"interpreter": "node",
+		"env": {
+			"NODE_ENV": "production",
+		},
+		"env_production": {
+			"NODE_ENV": "production"
+		},
+		"exec_mode": "fork",
+		"min_uptime": "60s",
+		"max_restarts": 10,
+		"max_memory_restart": "300M",
+		"log_date_format": "YYYY-MM-DD HH:mm Z",
+		"error_file": "/root/web/www/smzdm-sign/logs/smzdm-sign-err.log",
+		"out_file": "/root/web/www/smzdm-sign/logs/smzdm-sign-out.log",
+		"pid_file": "/root/web/www/smzdm-sign/logs/smzdm-sign.pid",
+		"watch": false
+	}]
+}
