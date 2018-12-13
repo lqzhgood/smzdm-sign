@@ -57,6 +57,7 @@
 | ------ | ------ | ------ |
 | sign | 是否签到 | true |
 | commit | 是否评论 | true |
+| autoDelCommit | 自动删除评论 | true |
 | sendLogEmail | 是否发送日志邮件 | true |
 
 

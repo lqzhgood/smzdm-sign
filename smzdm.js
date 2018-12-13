@@ -1,13 +1,16 @@
+const dayjs = require('dayjs');
+const cheerio = require("cheerio"); //文档转换
+const ejs = require("ejs"); //模板
+const schedule = require("node-schedule"); //定时器
+
+const fs = require('fs');
+
 const R = require('request-promise-native').defaults({
 	timeout: 5000,
 	headers: {
 		'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.110 Safari/537.36',
 	}
 });
-const dayjs = require('dayjs');
-const cheerio = require("cheerio"); //文档转换
-const ejs = require("ejs"); //模板
-const schedule = require("node-schedule"); //定时器
 const { getRandom, ascii2native } = require('./lib/utils'); //工具类
 const { MAIL_SEND } = require("./lib/mail"); //发邮件
 const { Mode, CookieListValKey, CommitList } = require("./config"); //配置文件
@@ -16,24 +19,36 @@ const { Mode, CookieListValKey, CommitList } = require("./config"); //配置文�
 let LogoInfoCommit = [];
 let LogoInfoSign = [];
 
+
 //文章列表 默认 首次进入时 getPostID 拿不到数据时 使用 （可能的情况 300-500页没数据了）
 let POST_ID_LIST = ['9350354', '9328133', '9328024', '9350282', '9350254', '9328044', '9350219', '9350181', '9350166', '9343266', '9350093', '9350065', '9350031', '9349991', '9349977', '9349974', '9349943', '9349901', '9349892', '9349732'];
 
 // TEST
 (async () => {
 	if (process.env.NODE_ENV == 'production') return;
+	global.g = {
+		LogoInfoCommit,
+		LogoInfoSign
+	};
 	//获取最新 待评论的 文章id
 	await getPostID(getCommitUrl(), 'https://www.smzdm.com/jingxuan/');
 	// TEST
-	// eslint-disable-next-line
-	MAIL_SEND('test', 'test');
 	for (let i = 0; i < CookieListValKey.length; i++) {
 		let cookieSess = CookieListValKey[i];
-		//延迟签到
-		await setTimeSmzdmSign(cookieSess);
-		//发表三次评论
-		await commitSettimeout(cookieSess);
+		//签到
+		await smzdmSign(cookieSess);
+		//评论
+		await smzdmCommit(cookieSess);
 	}
+	let data = { LogoInfoSign, LogoInfoCommit };
+	console.log('All JSON', data);
+	ejs.renderFile('./lib/mail-template.ejs', data, {}, (err, str) => {
+		if (!err) {
+			MAIL_SEND(`【日志】`, str);
+		} else {
+			MAIL_SEND(`【日志】`, `邮件渲染错误 ${err}`);
+		}
+	});
 })();
 
 
@@ -60,15 +75,22 @@ if (Mode.sendLogEmail) {
 			//使用ejs 模板引擎发送html 内容 2018-05-13
 			let data = { LogoInfoSign, LogoInfoCommit };
 			ejs.renderFile('./lib/mail-template.ejs', data, {}, (err, str) => {
-				if (err) throw err;
-				MAIL_SEND(`【日志】`, str);
+				if (!err) {
+					MAIL_SEND(`【日志】`, str);
+				} else {
+					MAIL_SEND(`【日志】`, `邮件渲染错误 ${err}`);
+				}
 			});
 		} catch (error) {
 			console.log(error.message);
 		} finally {
+			fs.writeFileSync(`./${dayjs().format('YYYYMMDD'.log)}`, JSON.stringify({
+				LogoInfoSign,
+				LogoInfoCommit
+			}));
 			//清空
-			LogoInfoCommit = [];
 			LogoInfoSign = [];
+			LogoInfoCommit = [];
 		}
 	});
 }
@@ -118,7 +140,7 @@ async function getPostID(url, refererUrl, cookie) {
 			console.log(`${dayjs().format("YYYY-MM-DD HH:mm:ss")} 评论列表更新失败`);
 		}
 	} catch (err) {
-		MAIL_SEND('【评论文章列表报错】', `时间: ${dayjs().format("YYYY-MM-DD HH:mm:ss")}  <br/>错误内容: <br/>${ascii2native(err)}`);
+		MAIL_SEND('【评论文章列表报错】', `时间: ${dayjs().format("YYYY-MM-DD HH:mm:ss")} <br/>错误内容: <br/>${err.message}`);
 	}
 }
 
@@ -149,13 +171,13 @@ async function smzdmSign(cookieSess) {
 	};
 	try {
 		let data = await R(options);
-		console.log('data===', data);
-		if (data.indexOf('"error_code":0') == -1) throw new Error(ascii2native(data));
-		let resJson = JSON.parse(`{${data.substring(data.indexOf('"add_point"'),data.indexOf('"slogan"')-1)}}`);
-		makeLogo(LogoInfoCommit, { cookieSess, data, resJson, });
+		let resJson = JSON.parse(data.match(/{.+}/)[0]);
+		if (resJson.error_code != 0) throw new Error(JSON.stringify(resJson));
+		makeLogo(LogoInfoSign, { cookieSess, data, jsonData: resJson.data });
 		console.log(`${dayjs().format("YYYY-MM-DD HH:mm:ss")} - 签到成功! ${cookieName}`);
 	} catch (err) {
-		MAIL_SEND('【签到报错】', `时间: ${dayjs().format("YYYY-MM-DD HH:mm:ss")}  <br/>用户: ${cookieName} <br/>错误内容: <br/>${ascii2native(err)}`);
+		console.log('签到错误', err.message);
+		MAIL_SEND('【签到报错】', `时间: ${dayjs().format("YYYY-MM-DD HH:mm:ss")}  <br/>用户: ${cookieName} <br/>错误内容: <br/>${err.message}`);
 	}
 }
 
@@ -189,7 +211,6 @@ function commitSettimeout(cookieSess, timeNum = 1) {
  * @param {Object} cookieSess cookie信息
  */
 async function smzdmCommit(cookieSess) {
-	//	let num = Math.floor(Math.random() * 900);
 	let cookie = cookieSess.cookies;
 	let cookieName = cookieSess.username;
 	let referer = 'https://zhiyou.smzdm.com/user/submit/';
@@ -200,24 +221,52 @@ async function smzdmCommit(cookieSess) {
 	};
 	try {
 		let data = await R(options);
-		if (data.indexOf('"error_code":0') == -1) throw new Error(ascii2native(data));
-		let resJson = JSON.parse(`{${data.substring(data.indexOf('"error_msg"')+13,data.indexOf('"head"')-1)}}`);
-		makeLogo(LogoInfoCommit, { cookieSess, data, resJson, pId });
-		console.log(`${dayjs().format("YYYY-MM-DD HH:mm:ss")} - 评论成功 ${cookieName}`);
+		let resJson = JSON.parse(data.match(/{.+}/)[0]);
+		if (resJson.error_code != 0) throw new Error(JSON.stringify(resJson));
+		makeLogo(LogoInfoCommit, { cookieSess, data, jsonData: resJson.error_msg, pId });
+		console.log(`${dayjs().format("YYYY-MM-DD HH:mm:ss")} - 评论成功 ${cookieName} ${resJson.error_msg.comment_ID}`);
+		// 删除 评论
+		setTimeout(() => {
+			if (Mode.autoDelCommit) smzdmDelCommit(cookieSess, resJson.error_msg.comment_ID);
+		}, getRandom(10, 40) * 1000);
 	} catch (err) {
-		MAIL_SEND('【评论报错】', `时间: ${dayjs().format("YYYY-MM-DD HH:mm:ss")}  <br/>用户: ${cookieName} <br/>错误内容: <br/>${ascii2native(error)}`);
+		console.log('评论错误', err.message);
+		MAIL_SEND('【评论报错】', `时间: ${dayjs().format("YYYY-MM-DD HH:mm:ss")}  <br/>用户: ${cookieName} <br/>错误内容: <br/>${err.message}`);
+	}
+}
+
+
+async function smzdmDelCommit(cookieSess, comment_id) {
+	//	let num = Math.floor(Math.random() * 900);
+	let cookie = cookieSess.cookies;
+	let cookieName = cookieSess.username;
+	let referer = 'https://zhiyou.smzdm.com/user/submit/';
+	let options = {
+		method: 'POST',
+		url: `https://zhiyou.smzdm.com/user/comment/ajax_del_comment?callback=jQuery112404079034035895881_${Date.now()}`,
+		headers: { Cookie: cookie, Referer: referer },
+		form: { comment_id, operator: 0 }
+	};
+	try {
+		let data = await R(options);
+		let resJson = JSON.parse(data.match(/{.+}/)[0]);
+		if (resJson.error_code != 0) throw new Error(JSON.stringify(resJson));
+		console.log(`${dayjs().format("YYYY-MM-DD HH:mm:ss")} - 评论删除成功 ${cookieName} ${comment_id}`);
+	} catch (err) {
+		console.log('删除评论错误', err.message);
+		MAIL_SEND('【评论删除错误】', `时间: ${dayjs().format("YYYY-MM-DD HH:mm:ss")}  <br/>用户: ${cookieName} <br/>错误内容: <br/>${err.message}`);
 	}
 }
 
 
 function makeLogo(arr, obj) {
-	let { cookieSess, data, resJson, pId } = obj;
+	let { cookieSess, data, jsonData, pId } = obj;
 	//记录评论日志
 	let logInfo = {};
 	logInfo.cookie = cookieSess.username;
 	logInfo.date = dayjs().format("YYYY-MM-DD HH:mm:ss");
 	logInfo.data = ascii2native(data);
-	logInfo.jsonData = resJson;
+	logInfo.jsonData = jsonData;
 	logInfo.pId = pId;
 	arr.push(logInfo);
 }
