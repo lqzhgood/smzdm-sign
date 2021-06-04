@@ -103,7 +103,7 @@ if (Mode.sendLogEmail) {
  * @return {[type]}     [评论地址]
  */
 function getCommitUrl() {
-	let random = getRandom(100, 220);
+	let random = getRandom(50, 100);
 	let commitUrl = `https://faxian.smzdm.com/h1s0t0f37c0p${random}/`;
 	return commitUrl;
 }
