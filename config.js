@@ -30,6 +30,7 @@ let CommitList = [
 const Mode = {
 	sign: true,
 	commit: true,
+	autoDelCommit: true,
 	sendLogEmail: true
 };
 
